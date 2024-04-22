@@ -4,31 +4,23 @@ from delta.tables import *
 from pyspark.sql.functions import *
  
 # select data from Lakehouse E2E Planning MDR - Leadership Report into dataframe - df:
-
 df = spark.sql("SELECT * FROM Table Name in Lakehouse")
-
  
-
-#Change column names to be able to save is as delta table in Tables folder of the Lakehouse (old name, new name).
-
-# Lakehouse does not support %,".","(",")" in column names:
-
+# Change column names to be able to save is as delta table in Tables folder of the Lakehouse (old name, new name). Lakehouse does not support %,".","(",")" in column names:
 df=df.withColumnRenamed('old name', 'new name')\
-
     .withColumnRenamed('old name', 'new name')\
-
     .withColumn("Extract_Timestamp",to_date(current_timestamp())) # changing format of Extract_Timestamp to Date only
 
 # when new column has to be renamed just add .withColumnRenamed('old name', 'new name')\, last row of this df. statement cant have "\"
-
  
-
 # Create spark dataframe to be able to save it as delta table in lakehouse:
-
 # spark_df = spark.createDataFrame(df)
 
-# display(spark_df)
-
  
+# Save DataFrame as append to Delta Lake table in the Tables section of the default Lakehouse, append new records:
+# if you want to change the table, change it here, run the code, it will create table and than another runs will append data
+table_name = "table name to be saved in lakehouse" 
+df.write.mode("append").format("delta").partitionedBy("Extract_Timestamp").save(f"Tables/{table_name}")
 
-# Save DataFrame as append to Delta Lake table in the Tables section of the default Lakehouse, append new records
+
+# display(df)
