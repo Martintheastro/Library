@@ -1,3 +1,4 @@
+# how was data taken from Power BI Semantic model and appended in Lakhouse
 from delta.tables import *
 # from pyspark.sql import SparkSession
 # import pandas as pd
