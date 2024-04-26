@@ -4,7 +4,7 @@ from delta.tables import *
 from pyspark.sql.functions import *
  
 # select data from Lakehouse E2E Planning MDR - Leadership Report into dataframe - df:
-df = spark.sql("SELECT * FROM Table Name in Lakehouse")
+df = spark.sql("SELECT * FROM fact_DQRules")
  
 # Change column names to be able to save is as delta table in Tables folder of the Lakehouse (old name, new name). Lakehouse does not support %,".","(",")" in column names:
 df=df.withColumnRenamed('old name', 'new name')\
@@ -19,8 +19,9 @@ df=df.withColumnRenamed('old name', 'new name')\
  
 # Save DataFrame as append to Delta Lake table in the Tables section of the default Lakehouse, append new records:
 # if you want to change the table, change it here, run the code, it will create table and than another runs will append data
-table_name = "table name to be saved in lakehouse" 
+table_name = "fact_DQRulesHistorical" 
 df.write.mode("append").format("delta").partitionedBy("Extract_Timestamp").save(f"Tables/{table_name}")
 
-
 # display(df)
+
+
