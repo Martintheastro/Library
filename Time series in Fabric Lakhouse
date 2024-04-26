@@ -31,6 +31,9 @@ from pyspark.sql.types import *
 from delta.tables import*
 from pyspark.sql.functions import col, dayofmonth, month, year, date_format
 
+# Load data to the dataframe 
+df = spark.read.table("MSExercise.fact_DQRulesHistorical")
+
 DeltaTable.createIfNotExists(spark) \
      .tableName("MDRLakehouse.dim_date") \
      .addColumn("ReportDate", DateType()) \
