@@ -24,4 +24,42 @@ df.write.mode("append").format("delta").partitionedBy("Extract_Timestamp").save(
 
 # display(df)
 
+#########################################################################################################################################################################
+# create date dimension:
+
+from pyspark.sql.types import *
+from delta.tables import*
+from pyspark.sql.functions import col, dayofmonth, month, year, date_format
+
+DeltaTable.createIfNotExists(spark) \
+     .tableName("MDRLakehouse.dim_date") \
+     .addColumn("ReportDate", DateType()) \
+     .addColumn("Day", IntegerType()) \
+     .addColumn("Month", IntegerType()) \
+     .addColumn("Year", IntegerType()) \
+     .addColumn("mmmyyyy", StringType()) \
+     .addColumn("yyyymm", StringType()) \
+     .addColumn("mmmyyyy", StringType()) \
+     .addColumn("yyyymm", StringType()) \
+     .execute()
+
+
+# Create dataframe for dimDate_gold
+    
+dfdimDate_gold = df.dropDuplicates(["ReportDate"]).select(col("ReportDate"), \
+         dayofmonth("ReportDate").alias("Day"), \
+         month("ReportDate").alias("Month"), \
+         year("ReportDate").alias("Year"), \
+         date_format(col("ReportDate"), "MMM-yyyy").alias("mmmyyyy"), \
+         date_format(col("ReportDate"), "yyyyMM").alias("yyyymm"), \
+     ).orderBy("ReportDate")
+
+ # Display the first 10 rows of the dataframe to preview your data
+
+display(dfdimDate_gold.head(10))
+
+
+# df = spark.sql("SELECT * FROM MDRLakehouse.dim_date LIMIT 1000")
+# display(df)
+
 
