@@ -3,7 +3,7 @@ from delta.tables import *
 # import pandas as pd
 from pyspark.sql.functions import *
  
-# select data from Lakehouse E2E Planning MDR - Leadership Report into dataframe - df:
+# select data from Power BI semantic model in MDRLakehouse into dataframe - df:
 df = spark.sql("SELECT * FROM fact_DQRules")
  
 # Change column names to be able to save is as delta table in Tables folder of the Lakehouse (old name, new name). Lakehouse does not support %,".","(",")" in column names:
