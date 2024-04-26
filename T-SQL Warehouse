@@ -1,9 +1,9 @@
-
+fact_
 -- create schema for DQRules views and tables
 CREATE SCHEMA [DQRules]
  GO
   
--- create view for Power BI load
-CREATE VIEW DQRules.fact_DQRulesHistorical
+-- create view for Power BI load from the lakehouse historical table
+CREATE VIEW DQRules.v_DQRulesHistorical
 AS 
-SELECT * FROM MDRLakehous.DQRules.
+SELECT * FROM [MDRLakehouse].[DQRules].[fact_DQRulesHistorical]
