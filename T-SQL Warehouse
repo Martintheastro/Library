@@ -1,5 +1,5 @@
 fact_
--- create schema for DQRules views and tables
+-- create schema for DQRules views and tables in the MDRWarehouse
 CREATE SCHEMA [DQRules]
  GO
   
