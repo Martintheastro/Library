@@ -1,0 +1,6 @@
+CREATE SCHEMA DQRules
+GO
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name='fact_TimeSeries' AND SCHEMA_NAME(schem_id)='DQRules')
+  CREATE TABLE DQRules.fact_TimeSeries (
+  DQRuleID VARCHAR(255) NOT NULL,
+  
