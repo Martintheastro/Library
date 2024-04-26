@@ -1,0 +1,9 @@
+
+-- create schema for DQRules views and tables
+CREATE SCHEMA [DQRules]
+ GO
+  
+-- create view for Power BI load
+CREATE VIEW DQRules.fact_DQRulesHistorical
+AS 
+SELECT * FROM MDRLakehous.DQRules.
