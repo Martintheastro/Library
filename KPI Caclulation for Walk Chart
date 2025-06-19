@@ -1,0 +1,160 @@
+from pyspark.sql.functions import sum,avg,max,concat,col, lit, count, expr
+from functools import reduce
+from pyspark.sql import functions as F
+from pyspark.sql import DataFrame
+
+List_Entities = [
+
+]
+
+
+List_Views = ["YTD","Periodic"]
+df = spark.read.table("fact_pl_pl51000000") # Temporary
+df_filter = df.filter(df.Entity.isin(List_Entities))
+df_group_base = df_filter.groupBy('Entity','Scenario','Time','View','TimeDate','UD5')\
+    .agg(count(col('Entity')))\
+    .withColumn("Key",concat('UD5','Entity', 'Scenario', 'Time', 'View'))\
+    .drop('count(Entity)')
+df_group_base2 = df_group_base.groupBy('Entity','Time','View','TimeDate','UD5')\
+    .agg(count(col('Entity')))\
+    .withColumn("Key",concat('UD5','Entity','Time', 'View'))\
+    .drop('count(Entity)')
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#                                                                                   COPQ_MATSTD CALCULATION
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+List_Accounts = [
+
+]
+var_MetricName1 = "COPQ_MATSTD"
+df_Append = []
+
+# reduce the data to work only with required Accounts and Entities:
+df_Accounts = df_filter.filter(df_filter.Account.isin(List_Accounts))
+
+df_grouped = df_Accounts.groupBy(\
+    'Entity',\
+    'Scenario', \
+    'Time', \
+    'View', \
+    'TimeDate',\
+    'UD5')\
+    .agg(sum('Corrected_Amount').alias(var_MetricName1))\
+    .withColumn("Key",concat('UD5','Entity', 'Scenario', 'Time', 'View'))
+
+df_COPQ_MATSTD = df_grouped
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#                                                                                   MATERIAL SCRAP CALCULATION
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+List_Accounts = [
+
+]
+var_MetricName2 = "MAT_SCRAP"
+df_Append = []
+df_Accounts = df_filter.filter(df_filter.Account.isin(List_Accounts))
+
+df_grouped = df_Accounts.groupBy(\
+    'Entity',\
+    'Scenario', \
+    'Time', \
+    'View', \
+    'TimeDate',\
+    'UD5')\
+    .agg(sum('Corrected_Amount').alias(var_MetricName2))\
+    .withColumn("Key",concat('UD5','Entity', 'Scenario', 'Time', 'View'))\
+    
+df_COPQ_SCRAP = df_grouped
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#                                                                         II100A0000MA03 - Provision for finished and semifinished products write downs
+#                                                                           II100A0000MI03 - Provision for raw materials obsolescence
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+List_Accounts = [
+
+]
+var_MetricName3 = "Provision"
+df_Append = []
+df_Accounts = df_filter.filter(df_filter.Account.isin(List_Accounts))
+
+df_grouped = df_Accounts.groupBy(\
+    'Entity',\
+    'Scenario', \
+    'Time', \
+    'View', \
+    'TimeDate',\
+    'UD5')\
+    .agg(sum('Corrected_Amount').alias(var_MetricName3))\
+    .withColumn("Key",concat('UD5','Entity', 'Scenario', 'Time', 'View'))\
+    
+df_COPQ_Provision = df_grouped  
+
+df_COPQ = df_group_base.join(df_COPQ_MATSTD.select(var_MetricName1,'Key'), on='Key', how='left')\
+        .join(df_COPQ_SCRAP.select(var_MetricName2,'Key'), on='Key', how='left')\
+        .join(df_COPQ_Provision.select(var_MetricName3,'Key'), on='Key', how='left')
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#                                                                    Dataframe Column Transformation - Creating ACT and ACTBDG Columns
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Scenarios:
+
+var_Scenario1 = 'ACT'
+var_Scenario2 = 'ACTBDG'
+var_Scenario3 = 'ACTLY'
+var_Scenario4 = ''
+
+# ACTBDG Columns
+var_Column1_Scenario2 = var_MetricName1 + '_' + var_Scenario2
+var_Column2_Scenario2 = var_MetricName2 + '_' + var_Scenario2
+var_Column3_Scenario2 = var_MetricName3 + '_' + var_Scenario2
+
+# ACTLY Columns
+var_Column1_Scenario3 = var_MetricName1 + '_' + var_Scenario3
+var_Column2_Scenario3 = var_MetricName2 + '_' + var_Scenario3
+var_Column3_Scenario3 = var_MetricName3 + '_' + var_Scenario3
+
+# ungrouping of the data to get ACT and ACTBDG data next to each other (it looks like there is more ACT data than ACTBDG data)
+
+df_unpivot_Scenario1 = df_COPQ.where((col('Scenario') == var_Scenario1))\
+    .drop('Key')\
+    .withColumn("Key",concat('UD5','Entity','Time', 'View'))\
+
+# Scenario 2
+df_unpivot_Scenario2 = df_COPQ.where(col('Scenario') == var_Scenario2)\
+    .withColumnRenamed(var_MetricName1,var_Column1_Scenario2)\
+    .withColumnRenamed(var_MetricName2,var_Column2_Scenario2)\
+    .withColumnRenamed(var_MetricName3,var_Column3_Scenario2)\
+    .drop('Key')\
+    .withColumn("Key",concat('UD5','Entity','Time', 'View'))\
+
+# Scenario 3
+df_unpivot_Scenario3 = df_COPQ.where(col('Scenario') == var_Scenario3)\
+    .withColumnRenamed(var_MetricName1,var_Column1_Scenario3)\
+    .withColumnRenamed(var_MetricName2,var_Column2_Scenario3)\
+    .withColumnRenamed(var_MetricName3,var_Column3_Scenario3)\
+    .drop('Key')\
+    .withColumn("Key",concat('UD5','Entity','Time', 'View'))\
+
+df_COPQ = df_group_base2.join(df_unpivot_Scenario1.select(var_MetricName1,var_MetricName2,var_MetricName3,'Key'),on = 'Key',how = 'left')\
+    .join(df_unpivot_Scenario2.select(var_Column1_Scenario2,var_Column2_Scenario2,var_Column3_Scenario2,'Key'),on = 'Key',how = 'left')\
+    .join(df_unpivot_Scenario3.select(var_Column1_Scenario3,var_Column2_Scenario3,var_Column3_Scenario3,'Key'),on = 'Key',how = 'left')
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#                                                                                   Metric CALCULATION
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+df_COPQ_MAT = df_COPQ\
+    .withColumn('MAT_SCRAP_Portion', F.col('MAT_SCRAP') / col('COPQ_MATSTD'))\
+    .withColumn('MAT_SCRAP_Portion_ACTBDG', F.col('MAT_SCRAP_ACTBDG') / col('COPQ_MATSTD_ACTBDG'))\
+    .withColumn('Provision_Variance',F.col('Provision') - F.col('Provision_ACTBDG'))\
+    .withColumn('MatScrap_Variance',(F.col('MAT_SCRAP_Portion') - F.col('MAT_SCRAP_Portion_ACTBDG')) / F.col('COPQ_MATSTD'))\
+    .withColumn('COPQ_MAT_Variance',F.col('MatScrap_Variance') + F.col('Provision_Variance'))\
+    .withColumn('COPQ_MAT_VolumeEffect',F.col('MAT_SCRAP_Portion_ACTBDG') * (F.col('COPQ_MATSTD') - F.col('COPQ_MATSTD_ACTBDG')))\
+    .drop('COPQ_MATSTD','MAT_SCRAP','Provision',\
+        'COPQ_MATSTD_ACTBDG','MAT_SCRAP_ACTBDG','Provision_ACTBDG',\
+        'COPQ_MATSTD_ACTLY','MAT_SCRAP_ACTLY','Provision_ACTLY',\
+        'MAT_SCRAP_Portion','MAT_SCRAP_Portion_ACTBDG','Provision_Variance','MatScrap_Variance'
+        )
