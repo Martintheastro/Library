@@ -1,0 +1,42 @@
+import os, re, datetime
+from pyspark.sql.functions import udf
+from pyspark.sql.types import DateType
+from datetime import date, timedelta
+
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#                                                                   LOAD THE FILE INTO  DATAFRAME                                                                        #
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+
+file_name='PlantFirst_csv'
+var_TableName= 'Plant_First'
+
+file_path=os.path.join('abfss link to the file csv saved in lakehouse', file_name)
+df = spark.read.csv(file_path,sep = ';',header = True, inferSchema= True)
+
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#                                                                   CREATING FUNCTION TO TRANSFORM CSV NUMBER TO A DATE                                                  #
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+
+# we expect that the CSV uses a starting date (its general knowledge) as 30th dec 1899 as number 1:
+day_1 = date(year=1899, month=12, day=30)
+
+# Define a UDF to add days to the day 1:
+def add_days_to_day_1(days):
+    return day_1 + timedelta(days=days)
+# Register the UDF
+add_days_udf = udf(add_days_to_day_1, DateType())
+
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+#                                                                   MANIPULATIONG THE DATAFRAME                                                                        #
+#------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+
+var_TimeOfLoad = datetime.datetime.today() 
+
+new_df = df.withColumn("ExtractTimestampUTC",lit(var_TimeOfLoad))\
+    .withColumnRenamed('MARELLI Production Site','MARELLI_ProductionSite')\
+    .withColumnRenamed('KPI Name','KPI_Name')\
+    .withColumnRenamed('KPI Value','KPI_Value')\
+    .withColumn("Custom_CALENDAR_ID", add_days_udf(df["CALENDAR_ID"]))
+
+#Save the table
+new_df.write.mode("overwrite").format("delta").option("overwriteSchema", "true").save(f"Tables/{var_TableName}")
