@@ -1,0 +1,138 @@
+from pyspark.sql.functions import col, lit, make_date, substring,format_number, to_str, lit, to_date, row_number, sum
+from pyspark.sql import functions as F
+from pyspark.sql import Window
+from pyspark.sql.types import DecimalType, DoubleType
+
+df_bs_dioh = spark.sql("""SELECT * FROM LAKEHOUSE.TABLE 
+WHERE Account IN ("AA140A0000MA01","AA140A0000IS01","AA140B0000MA01","AA140B0000IS02","AA140D0000MA01","AA140D0000IS01")
+AND UD2 = "VL" AND Flow = "CLO"
+""")
+
+df_bs_base = df_bs_dioh.select('UD5','Entity', 'Scenario', 'Time', 'View').distinct()
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#                                                                                   DIOH_RM Raw Materials
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+List_Accounts = [
+"AA140A0000MA01","AA140A0000IS01"
+]
+var_MetricName1 = "DIOH_RM"
+
+# reduce the data to work only with required Accounts and Entities:
+df_Accounts = df_bs_dioh.filter(df_bs_dioh.Account.isin(List_Accounts))
+
+df_grouped_rm = df_Accounts.groupBy(\
+    'Entity',\
+    'Scenario', \
+    'Time', \
+    'View', \
+    'UD5')\
+    .agg(sum('Corrected_Amount').alias('Corrected_Amount'))\
+    .withColumn("Key",concat('UD5','Entity', 'Scenario', 'Time', 'View'))\
+    .withColumn('DIOH_Metric',lit(var_MetricName1))
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#                                                                                   DIOH_WIP Work in progress
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+List_Accounts = [
+"AA140B0000MA01","AA140B0000IS02"
+]
+var_MetricName2 = "DIOH_WIP"
+
+# reduce the data to work only with required Accounts and Entities:
+df_Accounts = df_bs_dioh.filter(df_bs_dioh.Account.isin(List_Accounts))
+
+df_grouped_wip = df_Accounts.groupBy(\
+    'Entity',\
+    'Scenario', \
+    'Time', \
+    'View', \
+    'UD5')\
+    .agg(sum('Corrected_Amount').alias('Corrected_Amount'))\
+    .withColumn("Key",concat('UD5','Entity', 'Scenario', 'Time', 'View'))\
+    .withColumn('DIOH_Metric',lit(var_MetricName2))
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#                                                                                   DIOH_FG Finished Goods
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+List_Accounts = [
+"AA140D0000MA01","AA140D0000IS01"
+]
+
+var_MetricName3 = "DIOH_FG"
+
+# reduce the data to work only with required Accounts and Entities:
+df_Accounts = df_bs_dioh.filter(df_bs_dioh.Account.isin(List_Accounts))
+
+df_grouped_fg = df_Accounts.groupBy(\
+    'Entity',\
+    'Scenario', \
+    'Time', \
+    'View', \
+    'UD5')\
+    .agg(sum('Corrected_Amount').alias('Corrected_Amount'))\
+    .withColumn("Key",concat('UD5','Entity', 'Scenario', 'Time', 'View'))\
+    .withColumn('DIOH_Metric',lit(var_MetricName3))
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#                                                                                   IMPOSED REVENUES
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+List_Imposed_Rev = ["IMP_MAT",
+"IMP_MAT_IC",
+"IMP_MAT_IC_R",
+"IMP_MAT_R",
+"IMP_SAL",
+"IMP_SAL_IC",
+"IMP_SAL_IC_R",
+"IMP_SAL_R"]
+
+df_Accounts = df_cd.filter(df_cd.Account.isin(List_Imposed_Rev))
+
+df_group_ir = df_Accounts.groupBy(\
+    'Entity',\
+    'Scenario', \
+    'Time', \
+    'View', \
+    'UD5')\
+    .agg(sum('Corrected_Amount').alias('Imposed_Rev'))\
+    .withColumn("Key",concat('UD5','Entity', 'Scenario', 'Time', 'View'))\
+   
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#                                                                                   DIOH_GDI Gross Direct Inventory
+#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# we need the breakdown of RM, WIP and FG in the chart in Power BI. We also need Total Net Revenue and Gross Profit to calculate DIOH:
+df_GDI = df_grouped_rm.union(df_grouped_wip).union(df_grouped_fg)\
+    .withColumn("Day1",lit(1))\
+    .withColumn("TimeMonth",substring('Time',6,2))\
+    .withColumn('TimeYear',substring('Time',0,4))\
+    .withColumn('TimeDate',F.make_date('TimeYear','TimeMonth','Day1'))\
+    .drop('TimeMonth','Day1')
+
+# Revenue - Gross Profit = Costs, which is already created in dataframe df_costs:
+
+df_cogs = df_group_costs.join(df_group_ir.select('Key','Imposed_Rev'), on = 'Key', how = 'left')\
+# now, we are going to add imposed revenue to the costs:
+df_cogs = df_cogs.withColumn("Corrected_Amount",F.col('Costs') + F.col('Imposed_Rev'))  
+
+df_cogs = df_cogs.withColumn('DIOH_Metric',lit('DIOH_COGS'))\
+    .withColumn("Day1",lit(1))\
+    .withColumn("TimeMonth",substring('Time',6,2))\
+    .withColumn('TimeYear',substring('Time',0,4))\
+    .withColumn('TimeDate',F.make_date('TimeYear','TimeMonth','Day1'))\
+    .drop('TimeMonth','Day1','Costs','Imposed_Rev')
+
+# working with revenue, we need to drop the ParentID_Name to match the schema with df_GDI and rename "Account" to match 'DIOH_Metric' field:
+df_rev = df_group_Rev.drop('ParentId_Name')\
+    .withColumnRenamed('Account','DIOH_Metric')
+
+# dropping Key field in df_GDI and df_cogs, we probably dont need this field anymore, no join ahead:
+df_GDI = df_GDI.drop('Key')
+df_cogs = df_cogs.drop('Key')
+
+# unioning the dataframes to have all the metrics for DIOH calculation in one column for Power BI and filling null with 0:
+
+df_GDI = df_GDI.union(df_cogs).union(df_rev)
+df_GDI = df_GDI.na.fill(0)
