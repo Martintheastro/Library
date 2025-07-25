@@ -1,0 +1,19 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, sum as sql_sum, expr, last_day, add_months, to_date
+from pyspark.sql.window import Window
+from pyspark.sql import functions as F
+
+days = lambda i: i*1
+# Initialize the Spark session
+spark = SparkSession.builder \
+    .appName("RollingRevenueCalculation") \
+    .getOrCreate()
+
+# Assuming you have a DataFrame `sales_df` with 'date' and 'revenue' columns
+cogs90_df = df.filter(df.DIOH_Metric == 'DIOH_COGS')
+
+# Create a Window Specification: rolling over the last 3 months:
+window_spec = Window.partitionBy('Entity','Scenario','View','UD5').orderBy("TimeDate").rowsBetween(-2,0)
+
+# Calculate the 3-month rolling COGS
+df_90dayscogs = cogs90_df.withColumn("90COGS", F.sum("Corrected_Amount").over(window_spec))
