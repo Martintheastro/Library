@@ -1,0 +1,24 @@
+for item in list_ParentID:
+    # reading COA PL table
+    df_coa_filter = df_coa.filter(df_coa.ParentId_Name == item) # filtering ChildId_Name records that belong to the one ParentID taken from the list
+    w = Window.orderBy(var_MainColumn) # creating primary key in PL COA table:
+    df_coa_distinct = df_coa_filter.withColumn(var_PKColumnName,row_number().over(w)).select(var_PKColumnName,'ChildId_Name','ParentId_Name','ParentId_Desc','ChildId_Desc')
+
+    # joining Consolidated Data with PL COA data:
+    df_join = df_cd.join(df_coa_distinct,df_cd.Account == df_coa_distinct.ChildId_Name,'left')\
+        .drop('ChildId_Name','ChildId_Desc','ParentId_Name','ParentId_Desc')\
+        .withColumnRenamed(var_PKColumnName,var_FKColumnName)\
+        .filter(col(var_FKColumnName).isNotNull())\
+        .withColumn('ParentId_Name',lit(item))\
+        .withColumn("Day1",lit(1))\
+        .withColumn("TimeMonth",substring('Time',6,2))\
+        .withColumn('TimeYear',substring('Time',0,4))\
+        .withColumn('TimeDate',F.make_date('TimeYear','TimeMonth','Day1'))\
+        .drop('TimeMonth','Day1')\
+
+    df_group = df_join.groupBy('ParentId_Name',"Entity", "Scenario", "Time", "View", "Account", "UD5","UD4","TimeDate", "ExtractTimestampUTC",'TimeYear')\
+        .agg(sum('Corrected_Amount').alias('Corrected_Amount'))
+    df_group = df_group.filter(col('UD4') != 'None')
+    
+    # df_coa_distinct.write.mode('overwrite').option('overwriteSchema','true').saveAsTable(f"dim_coa_{item}") # saving Dimension COA PL table for each ParentId currently in the loop
+    df_group.write.partitionBy('TimeYear').mode('overwrite').option('overwriteSchema','true').saveAsTable(f"fact_pl_{item}") # saving Consolidated table for each ParentId currenlty in the loop
