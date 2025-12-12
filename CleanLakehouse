@@ -1,0 +1,22 @@
+
+# This code lists all tables in the Spark catalog attached to the current Lakehouse
+# and vacuums only those starting with "silver" or "staging", retaining only the latest 7 days (168 hours).
+# WARNING: Vacuum operation permanently deletes data files older than the retention period.
+
+from delta.tables import DeltaTable
+
+# Get all tables in the catalog
+tables = spark.catalog.listTables()
+
+# Loop through tables with names starting with 'silver' or 'staging'
+for table in tables:
+    table_name = table.name
+    if table_name.startswith("silver") or table_name.startswith("staging"):
+        try:
+            # Get DeltaTable for the table
+            deltaTable = DeltaTable.forName(spark, table_name)
+            # Vacuum the table, keeping data from only the last 336 hours (14 days)
+            deltaTable.vacuum(retentionHours=336)
+            print(f"Vacuumed table: {table_name}")
+        except Exception as e:
+            print(f"Could not vacuum table: {table_name}, error: {e}")
