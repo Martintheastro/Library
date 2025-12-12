@@ -1,0 +1,27 @@
+from pyspark.sql import DataFrame
+from pyspark.sql.functions import sum,concat,col, lit
+def dataframe_grouped_Accounts_Child(List_KPIReporting,entity_list) -> DataFrame:
+    
+    df_kpi_results = []
+
+    for kpi_name in List_KPIReporting:
+
+        kpi = kpi_name['KPI']
+
+        for kpi_group in kpi_name['Breakdown']:
+
+            Metric = kpi_group['Metric']
+            List_Accounts = kpi_group['List_Accounts']
+            df =  kpi_group['Source']
+            df_group_results = []
+  
+            matching_accounts = df.filter((col("Account").isin(List_Accounts)) & (col("Entity").isin(entity_list)))
+    
+            df_group = matching_accounts\
+                .groupBy('Entity','Account','Time','View','Scenario','UD5')\
+                .agg(sum(col('Corrected_Amount')).alias('Value'))\
+                .withColumn('Metric',lit(Metric))
+
+        df_kpi_results.append(df_group)
+
+    return df_kpi_results
