@@ -1,0 +1,76 @@
+def process_financial_scenarios(df_union_FSC: DataFrame) -> DataFrame:
+        List_Years = [2023,2024,2025]
+        List_Years.sort() # sorting from the newest to the oldest
+
+        # New column names for each year FX:
+        var_BP25FX = 'BP25_FX'
+        var_BP24FX = 'BP24_FX'
+        var_ACTrateFX = 'ACT_RATE'
+
+        # counting number of years in consolidated data:
+        i = len(List_Years)
+
+        #current year is the last member of the list (because sort method, sorts from oldest to newest). This part that could be automated for filtering years
+        var_CurrentYear = List_Years[i-1]
+        var_LastYear = List_Years[i-2]
+        var_BeforeLastYear = List_Years[i-3]
+
+        # this is changing manually, because there is no automation in setting the name of the scenarios for each year:
+        List_BP25FX = ['ACTBDG','BDGFINAL']
+        var_BP25FX_2024 = 'ACTPRO'
+        var_BP25FX_2023 = 'ACTFORE'
+        List_ACTcurrent25 = ['ACT','BDGFINAL']
+        var_ACTLast = 'ACT'
+        # 20251201.1
+        df_union_FSC_BP25FX_2025_2024 = df_union_FSC\
+                .where((col('TimeYear') == var_CurrentYear) & (col('Scenario').isin(List_BP25FX)))\
+                .withColumn('MonthNum',substring('Time',5,3))\
+                .withColumn('FinScenario',lit(var_BP25FX))\
+                .withColumn('TimePeriod',lit(str(var_CurrentYear) + '-' + str(var_LastYear)))
+        df_union_FSC_BP25FX_2025_2023 = df_union_FSC\
+                .where((col('TimeYear') == var_CurrentYear) & (col('Scenario').isin(List_BP25FX)))\
+                .withColumn('MonthNum',substring('Time',5,3))\
+                .withColumn('FinScenario',lit(var_BP25FX))\
+                .withColumn('TimePeriod',lit(str(var_CurrentYear) + '-' + str(var_BeforeLastYear)))
+        df_union_FSC_BP25FX_2024 = df_union_FSC\
+                .where((col('TimeYear') == var_LastYear) & (col('Scenario') == var_BP25FX_2024))\
+                .withColumn('MonthNum',substring('Time',5,3))\
+                .withColumn('FinScenario',lit(var_BP25FX))\
+                .withColumn('TimePeriod',lit(str(var_CurrentYear) + '-' + str(var_LastYear)))
+        df_union_FSC_BP25FX_2023 = df_union_FSC\
+                .where((col('TimeYear') == var_BeforeLastYear) & (col('Scenario') == var_BP25FX_2023))\
+                .withColumn('MonthNum',substring('Time',5,3))\
+                .withColumn('FinScenario',lit(var_BP25FX))\
+                .withColumn('TimePeriod',lit(str(var_CurrentYear) + '-' + str(var_BeforeLastYear)))
+        df_union_FSC_BP24FX_2024 = df_union_FSC\
+                .where((col('TimeYear') == var_LastYear) & (col('Scenario') == var_BP25FX_2024))\
+                .withColumn('MonthNum',substring('Time',5,3))\
+                .withColumn('FinScenario',lit(var_BP24FX))\
+                .withColumn('TimePeriod',lit(str(var_LastYear) + '-' + str(var_BeforeLastYear)))
+        df_union_FSC_BP24FX_2023 = df_union_FSC\
+                .where((col('TimeYear') == var_BeforeLastYear) & (col('Scenario') == var_BP25FX_2023))\
+                .withColumn('MonthNum',substring('Time',5,3))\
+                .withColumn('FinScenario',lit(var_BP24FX))\
+                .withColumn('TimePeriod',lit(str(var_LastYear) + '-' + str(var_BeforeLastYear)))
+        df_union_FSC_ACTcurrent = df_union_FSC\
+                .where((col('TimeYear') == var_CurrentYear) & (col('Scenario').isin(List_ACTcurrent25)))\
+                .withColumn('MonthNum',substring('Time',5,3))\
+                .withColumn('FinScenario',lit(var_ACTrateFX))\
+                .withColumn('TimePeriod',lit(str(var_CurrentYear) + '-' + str(var_LastYear)))
+        df_union_FSC_ACTlast = df_union_FSC\
+                .where((col('TimeYear') == var_LastYear) & (col('Scenario') == var_ACTLast))\
+                .withColumn('MonthNum',substring('Time',5,3))\
+                .withColumn('FinScenario',lit(var_ACTrateFX))\
+                .withColumn('TimePeriod',lit(str(var_CurrentYear) + '-' + str(var_LastYear)))
+
+
+        df_union_FSC_FX = df_union_FSC_BP25FX_2025_2024\
+                .unionByName(df_union_FSC_BP25FX_2025_2023)\
+                .unionByName(df_union_FSC_BP25FX_2024)\
+                .unionByName(df_union_FSC_BP25FX_2023)\
+                .unionByName(df_union_FSC_BP24FX_2024)\
+                .unionByName(df_union_FSC_BP24FX_2023)\
+                .unionByName(df_union_FSC_ACTcurrent)\
+                .unionByName(df_union_FSC_ACTlast)
+
+        return df_union_FSC_FX
