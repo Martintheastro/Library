@@ -1,0 +1,12 @@
+from pyspark.sql.functions import when, col
+
+# Remove 'DWHProd' from start if 'TableName' starts with 'DWHProd_'
+df_a = df.withColumn(
+    'TableName',
+    when(
+        col('TableName').startswith('DWHProd_'),
+        col('TableName').substr(9, 1000)  # Remove first 7 characters; 8th position is after 'DWHProd_'
+    ).otherwise(col('TableName'))
+)
+
+display(df_a
